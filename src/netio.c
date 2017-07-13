@@ -297,7 +297,7 @@ in_addr_t resolv(char *name)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
   /* Hints getaddrinfo() to return only IPv4 compatible addresses. */
-  struct addrinfo hints = { .ai_family = AF_UNSPEC, .ai_flags = AI_ALL | AI_V4MAPPED },
+  struct addrinfo hints = { .ai_family = AF_INET },
   *res, *res0 = NULL;
 #pragma GCC diagnostic pop
 
@@ -316,19 +316,11 @@ in_addr_t resolv(char *name)
 
   /* scan all the list. */
   for (res = res0; res; res = res->ai_next)
-  {
-    switch (res->ai_family)
+    if (res->ai_family == AF_INET)
     {
-    case AF_INET:
       addr = ((struct sockaddr_in *)res->ai_addr)->sin_addr.s_addr;
-      goto end_loop;
-
-    case AF_INET6:
-      if (!addr)
-        addr = ((struct sockaddr_in6 *)res->ai_addr)->sin6_addr.s6_addr32[3];
+      break;
     }
-  }
-end_loop:
 
   // Free the linked list.
   if (res0)
