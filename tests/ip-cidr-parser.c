@@ -57,7 +57,8 @@ static _Bool validate_cidr(char *s, int *icidr)
   // No CIDR, assume 32.
   if (!s)
   {
-    *icidr = 32;
+    if (*icidr < 0)
+      *icidr = 32;
     return true;
   }
 
@@ -71,7 +72,7 @@ static _Bool validate_cidr(char *s, int *icidr)
   return false;
 }
 
-static _Bool validate_partial_ip(char *s, uint32_t *ip)
+static _Bool validate_partial_ip(char *s, uint32_t *ip, int *cidr)
 {
   char *p, *q;
   char *substrs[4];   // NOTE: Stack allocation is easier!
@@ -144,6 +145,8 @@ static _Bool validate_partial_ip(char *s, uint32_t *ip)
   if (valid_octects < 4)
     *ip <<= (8 * (4 - valid_octects));
 
+  *cidr = 8 * valid_octects;
+
 validate_ip_exit:
   free(p);    // free the duplicated string.
   return r;
@@ -196,7 +199,8 @@ _Bool get_ip_and_cidr(char *s, _Bool use_resolver, uint32_t *ip, int *cidr)
   saddr = separate_ip_and_cidr(p, &scidr);
 
   r = true;
-  if (!validate_partial_ip(saddr, ip))
+  *cidr = -1;
+  if (!validate_partial_ip(saddr, ip, cidr))
   {
     if (!use_resolver)
       r = false;
