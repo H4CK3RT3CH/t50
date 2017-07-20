@@ -10,6 +10,9 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+// Validate a single string representing an octect.
+// Is valid, returns true and updates *octect, otherwise,
+// returns false and *octect is undefined.
 static _Bool validate_octect(char *s, uint8_t *octect)
 {
   char *q;
@@ -20,6 +23,7 @@ static _Bool validate_octect(char *s, uint8_t *octect)
   if (!*s)
     return false;
 
+  // all chars must be numeric!
   for (q = s; *q; q++)
     if (!isdigit(*q))
       return false;
@@ -32,6 +36,8 @@ static _Bool validate_octect(char *s, uint8_t *octect)
   return r;
 }
 
+// Returns the beginning of the string and sets *cidr.
+// if no cidr exists, *cidr will be NULL.
 static char *separate_ip_and_cidr(char *s, char **cidr)
 {
   char *p;
@@ -47,6 +53,7 @@ static _Bool validate_cidr(char *s, int *icidr)
 {
   int n;
 
+  // s can be NULL as of the return of separate_ip_and_cidr().
   // No CIDR, assume 32.
   if (!s)
   {
@@ -75,16 +82,16 @@ static _Bool validate_partial_ip(char *s, uint32_t *ip)
   // zero IP is an indication of error.
   *ip = 0;
 
-  // Don't disturb the original string, we'll need it later. Duplicate.
+  // Don't disturb the original string, we'll need it later!
   p = q = strdup(s);
 
-  // How many dots?
+  // Count the dots on IP address...
   numdots = 0;
   while (*q)
     if (*q++ == '.')
       numdots++;
 
-  // Too many dots is an error.
+  // We must have less than 4 dots: 'xxx.xxx.xxx.xxx'!
   if (numdots > 3)
   {
     r = false;
@@ -92,7 +99,7 @@ static _Bool validate_partial_ip(char *s, uint32_t *ip)
   }
 
   // Substitute dots for '\0' and make copies
-  // of the pointers.
+  // of the pointers (equivalent to spliting the string).
   q = p;
   i = 0;
   while (q)
@@ -105,14 +112,14 @@ static _Bool validate_partial_ip(char *s, uint32_t *ip)
       *q++ = '\0';
   }  
 
-  // The first octect can have some initial spaces.
-  // Get rid of them.
+  // If the first octect has some initial spaces, 
+  // get rid of them.
   q = substrs[0];
   while (*q && isspace(*q)) q++;
   substrs[0] = q;
 
   // NOTE: We don't need to verify if last octect has spaces.
-  // IPs can be "resolved" later by getaddrinfo(), is this
+  // IPs can be "resolved" later by getaddrinfo(), if this
   // feature is enabled.
 
   // Validate the octects filling *ip.
@@ -138,7 +145,7 @@ static _Bool validate_partial_ip(char *s, uint32_t *ip)
     *ip <<= (8 * (4 - valid_octects));
 
 validate_ip_exit:
-  free(p);
+  free(p);    // free the duplicated string.
   return r;
 }
 
@@ -177,7 +184,7 @@ resolv_exit:
 // If it returns true, is garanteed *ip and *cidr are correctly filled.
 //
 // *ip is little endian.
-
+//
 _Bool get_ip_and_cidr(char *s, _Bool use_resolver, uint32_t *ip, int *cidr)
 {
   _Bool r;
@@ -206,12 +213,11 @@ _Bool get_ip_and_cidr(char *s, _Bool use_resolver, uint32_t *ip, int *cidr)
   if (!validate_cidr(scidr, cidr))
     r = false;
 
-  free(p);
-
+  free(p);    // free the duplicated string.
   return r;
 }
 
-// Rotina de teste.
+// Test routine.
 void main(void)
 {
   char *tests[] = { 
@@ -219,31 +225,31 @@ void main(void)
     "10.10.10.10/1",  // ok
     "10.10.10.10/16", // ok
     "10.10.10.10/32", // ok
-    "10.10.10.10/33", // erro
+    "10.10.10.10/33", // error
 
     "10.10.10/24",    // ok
     "10.10.10",       // ok, ip = 0x0a0a0a00, cidr=32
     "10.10",          // ok, ip = 0x0a0a0000, cidr=32
 
-    ".10.10.10",      // erro
+    ".10.10.10",      // error
 
-    "10..10.10/20",   // deveria dar erro.
-    "10...10/20",     // deveria dar erro.
+    "10..10.10/20",   // error
+    "10...10/20",     // error
 
     " 10.10.10/24",   // ok
 
     "10.10.10 /24",   // ok
 
-    "10.10.10./24",   // erro
-    "10.10.10.10./24",// erro? (este está "falhando", mas é resolvido como nome).
+    "10.10.10./24",   // error
+    "10.10.10.10./24",// error? (this should be an error, but the routine tries to resolve it)
 
-    "10.10.10.10.10/24",// erro! (incluindo na tentativa de resolver o nome!)
+    "10.10.10.10.10/24",// error (the routine will try to resolve it!)
     "kernel.org/24",  // ok.
-    "::FFFF:10.32.12.12/32",         // ok?
-    "2605:bc80:3010:b00:0:deb:166:202",   // debian.com ipv6
-    "",
-    "x",
-    "-1",
+    "::FFFF:10.32.12.12/32",         // ok? (error if not name resolve feature enabled).
+    "2605:bc80:3010:b00:0:deb:166:202",   // debian.com ipv6 (error! not mapped to IPv4!).
+    "",               // error.
+    "x",              // error.
+    "-1",             // error.
 
     NULL
   };
